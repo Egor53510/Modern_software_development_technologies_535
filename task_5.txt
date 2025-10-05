@@ -1,0 +1,5 @@
+cd code-user/ # Переходим в директорию code-user
+git log -p
+echo 'Hello Hexlet!' > hexlet2.txt
+git add hexlet2.txt
+git commit -m 'fix hexlet2.txt'
