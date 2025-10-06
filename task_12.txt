@@ -1,0 +1,7 @@
+cd code-user/ # Переходим в директорию code-user
+echo 'notes.txt' > .gitignore
+echo 'todo.md' >> .gitignore
+git rm --cached notes.txt
+git commit -m 'remove notes.txt from repo'
+git add .gitignore
+git commit -m 'add .gitignore'
