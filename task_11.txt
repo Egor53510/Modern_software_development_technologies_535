@@ -1,0 +1,19 @@
+/usr/src/app$ cd code-user
+/usr/src/app/code-user$ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   index.html
+
+no changes added to commit (use "git add" and/or "git commit -a")
+/usr/src/app/code-user$ git add index.html
+/usr/src/app/code-user$ git commit --amend -m 'replace text'
+[main a6c0718] replace text
+ Date: Wed Oct 28 11:42:32 2020 +0700
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+/usr/src/app/code-user$ git log --oneline
+a6c0718 (HEAD -> main) replace text
+222185d refactoring
+7c2fcf8 add index.html
+83ed42c init
