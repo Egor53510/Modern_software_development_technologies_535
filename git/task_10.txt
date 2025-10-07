@@ -1,0 +1,35 @@
+/usr/src/app$ cd code-user
+/usr/src/app/code-user$ git log --todo.md
+fatal: unrecognized argument: --todo.md
+/usr/src/app/code-user$ git log -- todo.md
+commit 222185dd25ed6e3c6480b0158a8422da9a49be8c
+Author: Student <support@hexlet.io>
+Date:   Wed Oct 28 11:41:49 2020 +0700
+
+    refactoring
+
+commit 7c2fcf8ea51e7e09af786f911ca9b7db355ab6e3
+Author: Student <support@hexlet.io>
+Date:   Wed Oct 28 11:38:02 2020 +0700
+
+    add index.html
+/usr/src/app/code-user$ git checkout 7c2fcf8ea51e7e09af786f911ca9b7db355ab6e3
+Note: switching to '7c2fcf8ea51e7e09af786f911ca9b7db355ab6e3'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 7c2fcf8 add index.html
+/usr/src/app/code-user$ 
