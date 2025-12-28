@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать запись в {{ table_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h3 class="mb-0"><i class="fas fa-edit me-2"></i>Редактировать запись в таблице "{{ table_name }}"</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" id="editForm">
+                    <div class="row">
+                        {% for column in columns %}
+                        {% if column.name != 'id' or column.nullable %}
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ column.name }}" class="form-label">
+                                {{ column.name.replace('_', ' ').title() }}
+                                {% if not column.nullable and column.default is none %}
+                                <span class="text-danger">*</span>
+                                {% endif %}
+                            </label>
+                            
+                            {% set current_value = record_data[column.name] %}
+                            
+                            {% if column.type == 'boolean' %}
+                            <select class="form-select" id="{{ column.name }}" name="{{ column.name }}">
+                                <option value="true" {% if current_value %}selected{% endif %}>Да</option>
+                                <option value="false" {% if not current_value %}selected{% endif %}>Нет</option>
+                            </select>
+                            
+                            {% elif 'date' in column.type %}
+                            <input type="date" class="form-control" id="{{ column.name }}" name="{{ column.name }}" 
+                                   value="{{ current_value or '' }}"
+                                   {% if not column.nullable and column.default is none %}required{% endif %}>
+                            
+                            {% elif column.type in ['integer', 'bigint', 'smallint'] %}
+                            <input type="number" class="form-control" id="{{ column.name }}" name="{{ column.name }}" 
+                                   value="{{ current_value or '' }}"
+                                   {% if not column.nullable and column.default is none %}required{% endif %}>
+                            
+                            {% elif column.type in ['decimal', 'numeric', 'real', 'double precision'] %}
+                            <input type="number" step="0.01" class="form-control" id="{{ column.name }}" name="{{ column.name }}" 
+                                   value="{{ current_value or '' }}"
+                                   {% if not column.nullable and column.default is none %}required{% endif %}>
+                            
+                            {% elif column.type == 'text' %}
+                            <textarea class="form-control" id="{{ column.name }}" name="{{ column.name }}" rows="3"
+                                      {% if not column.nullable and column.default is none %}required{% endif %}>{{ current_value or '' }}</textarea>
+                            
+                            {% else %}
+                            <input type="text" class="form-control" id="{{ column.name }}" name="{{ column.name }}" 
+                                   value="{{ current_value or '' }}"
+                                   {% if not column.nullable and column.default is none %}required{% endif %}>
+                            {% endif %}
+                            
+                            <small class="form-text text-muted">
+                                Тип: {{ column.type }}
+                                {% if column.nullable %}
+                                (может быть NULL)
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-save me-1"></i>Сохранить изменения
+                            </button>
+                            <a href="/table/{{ table_name }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i>Отмена
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('editForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+        if (value.trim() !== '') {
+            data[key] = value;
+        }
+    }
+    
+    try {
+        const response = await fetch(`/table/{{ table_name }}/edit/{{ record_id }}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            window.location.href = '/table/{{ table_name }}';
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Ошибка при сохранении изменений');
+    }
+});
+</script>
+{% endblock %}

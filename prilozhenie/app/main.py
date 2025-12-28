@@ -72,6 +72,9 @@ async def view_table(request: Request, table_name: str, page: int = 1):
         if table_name not in tables:
             raise HTTPException(status_code=404, detail="Таблица не найдена")
         
+        # Получаем первичный ключ таблицы
+        pk_column = CRUD.get_primary_key(table_name)
+        
         # Получаем данные таблицы
         result = CRUD.get_table_data(table_name, page=page, page_size=200)
         columns = CRUD.get_table_columns(table_name)
@@ -85,7 +88,8 @@ async def view_table(request: Request, table_name: str, page: int = 1):
             "current_page": page,
             "total_pages": result["total_pages"],
             "page_size": result["page_size"],
-            "all_tables": tables
+            "all_tables": tables,
+            "primary_key": pk_column
         })
     except Exception as e:
         logger.error(f"Ошибка просмотра таблицы {table_name}: {e}")
@@ -93,6 +97,92 @@ async def view_table(request: Request, table_name: str, page: int = 1):
             "request": request,
             "error": str(e)
         })
+
+# Форма редактирования записи
+@app.get("/table/{table_name}/edit/{record_id}", response_class=HTMLResponse)
+async def edit_record_form(request: Request, table_name: str, record_id: int):
+    """Форма редактирования записи"""
+    try:
+        tables = CRUD.get_tables()
+        if table_name not in tables:
+            raise HTTPException(status_code=404, detail="Таблица не найдена")
+        
+        columns = CRUD.get_table_columns(table_name)
+        
+        # Получаем данные записи
+        record_data = CRUD.get_record_by_id(table_name, record_id)
+        if not record_data:
+            raise HTTPException(status_code=404, detail="Запись не найдена")
+        
+        return templates.TemplateResponse("edit_record.html", {
+            "request": request,
+            "table_name": table_name,
+            "record_id": record_id,
+            "columns": columns,
+            "record_data": record_data,
+            "all_tables": tables
+        })
+    except Exception as e:
+        logger.error(f"Ошибка загрузки формы редактирования для таблицы {table_name}: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e)
+        })
+
+# Редактирование записи
+@app.post("/table/{table_name}/edit/{record_id}", response_class=JSONResponse)
+async def edit_record(request: Request, table_name: str, record_id: int):
+    """Редактирование записи в таблице"""
+    try:
+        form_data = await request.form()
+        
+        # Преобразуем данные формы в словарь
+        data = {}
+        for key, value in form_data.items():
+            if value and value.strip() != "":
+                # Пытаемся преобразовать в нужный тип
+                if "_id" in key or key in ["publication_year", "page_count"]:
+                    try:
+                        data[key] = int(value)
+                    except:
+                        data[key] = value
+                elif key in ["price", "fine_amount"]:
+                    try:
+                        data[key] = float(value)
+                    except:
+                        data[key] = value
+                elif key in ["birth_date", "due_date", "return_date", "paid_date"]:
+                    if value:
+                        data[key] = value
+                else:
+                    data[key] = value
+        
+        result = CRUD.update_record(table_name, record_id, data)
+        
+        if result["success"]:
+            return {"success": True, "message": "Запись успешно обновлена"}
+        else:
+            return {"success": False, "error": result["error"]}
+            
+    except Exception as e:
+        logger.error(f"Ошибка редактирования записи в таблице {table_name}: {e}")
+        return {"success": False, "error": str(e)}
+
+# Удаление записи
+@app.post("/table/{table_name}/delete/{record_id}", response_class=JSONResponse)
+async def delete_record(request: Request, table_name: str, record_id: int):
+    """Удаление записи из таблицы"""
+    try:
+        result = CRUD.delete_record(table_name, record_id)
+        
+        if result["success"]:
+            return {"success": True, "message": "Запись успешно удалена"}
+        else:
+            return {"success": False, "error": result["error"]}
+            
+    except Exception as e:
+        logger.error(f"Ошибка удаления записи из таблицы {table_name}: {e}")
+        return {"success": False, "error": str(e)}
 
 # Форма добавления записи
 @app.get("/table/{table_name}/add", response_class=HTMLResponse)

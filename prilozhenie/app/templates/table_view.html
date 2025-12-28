@@ -25,6 +25,7 @@
                                 {% for column in columns %}
                                 <th>{{ column.name }}</th>
                                 {% endfor %}
+                                <th>Действия</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -52,6 +53,21 @@
                                     {% endif %}
                                 </td>
                                 {% endfor %}
+                                <td>
+                                    {% set record_id = row.get(primary_key) %}
+                                    {% if record_id is not none %}
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="/table/{{ table_name }}/edit/{{ record_id }}" class="btn btn-outline-primary" title="Редактировать">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button class="btn btn-outline-danger" onclick="deleteRecord('{{ table_name }}', {{ record_id }})" title="Удалить">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">Нет ID</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -97,4 +113,30 @@
         </div>
     </div>
 </div>
+
+<script>
+function deleteRecord(tableName, recordId) {
+    if (confirm('Вы уверены, что хотите удалить эту запись?')) {
+        fetch(`/table/${tableName}/delete/${recordId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Запись успешно удалена');
+                location.reload();
+            } else {
+                alert('Ошибка удаления: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Ошибка удаления записи');
+        });
+    }
+}
+</script>
 {% endblock %}

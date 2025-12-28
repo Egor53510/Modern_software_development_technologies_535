@@ -47,6 +47,127 @@ class CRUD:
                 ]
     
     @staticmethod
+    def get_primary_key(table_name):
+        """Получение имени первичного ключа таблицы"""
+        try:
+            with Database.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT column_name 
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        WHERE tc.table_name = %s AND tc.constraint_type = 'PRIMARY KEY'
+                    """, (table_name,))
+                    
+                    result = cur.fetchone()
+                    return result[0] if result else 'id'
+        except Exception:
+            return 'id'
+
+    @staticmethod
+    def get_record_by_id(table_name, record_id):
+        """Получение записи по ID"""
+        try:
+            with Database.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Получаем первичный ключ таблицы
+                    cur.execute("""
+                        SELECT column_name 
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        WHERE tc.table_name = %s AND tc.constraint_type = 'PRIMARY KEY'
+                    """, (table_name,))
+                    
+                    pk_result = cur.fetchone()
+                    if pk_result:
+                        pk_column = pk_result[0]
+                    else:
+                        pk_column = 'id'  # По умолчанию
+                    
+                    cur.execute(f"SELECT * FROM {table_name} WHERE {pk_column} = %s", (record_id,))
+                    record = cur.fetchone()
+                    
+                    if record:
+                        columns = CRUD.get_table_columns(table_name)
+                        return dict(zip([col['name'] for col in columns], record))
+                    else:
+                        return None
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def update_record(table_name, record_id, data):
+        """Обновление записи"""
+        try:
+            with Database.get_connection_context() as conn:
+                with conn.cursor() as cur:
+                    # Получаем первичный ключ таблицы
+                    cur.execute("""
+                        SELECT column_name 
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        WHERE tc.table_name = %s AND tc.constraint_type = 'PRIMARY KEY'
+                    """, (table_name,))
+                    
+                    pk_result = cur.fetchone()
+                    if pk_result:
+                        pk_column = pk_result[0]
+                    else:
+                        pk_column = 'id'  # По умолчанию
+                    
+                    # Формируем SET часть запроса
+                    set_parts = []
+                    values = []
+                    
+                    for key, value in data.items():
+                        if key != pk_column:  # Не обновляем первичный ключ
+                            set_parts.append(f"{key} = %s")
+                            values.append(value)
+                    
+                    if not set_parts:
+                        return {"success": False, "error": "Нет данных для обновления"}
+                    
+                    values.append(record_id)
+                    
+                    query = f"UPDATE {table_name} SET {', '.join(set_parts)} WHERE {pk_column} = %s"
+                    cur.execute(query, values)
+                    
+                    return {"success": True, "message": "Запись успешно обновлена"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def delete_record(table_name, record_id):
+        """Удаление записи"""
+        try:
+            with Database.get_connection_context() as conn:
+                with conn.cursor() as cur:
+                    # Получаем первичный ключ таблицы
+                    cur.execute("""
+                        SELECT column_name 
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        WHERE tc.table_name = %s AND tc.constraint_type = 'PRIMARY KEY'
+                    """, (table_name,))
+                    
+                    pk_result = cur.fetchone()
+                    if pk_result:
+                        pk_column = pk_result[0]
+                    else:
+                        pk_column = 'id'  # По умолчанию
+                    
+                    query = f"DELETE FROM {table_name} WHERE {pk_column} = %s"
+                    cur.execute(query, (record_id,))
+                    
+                    return {"success": True, "message": "Запись успешно удалена"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
     def get_table_data(table_name, page=1, page_size=200):
         """Получение данных из таблицы с пагинацией"""
         offset = (page - 1) * page_size
@@ -176,18 +297,19 @@ class CRUD:
                     # Фильтруем поля, которые могут быть NULL или имеют значения по умолчанию
                     columns = []
                     values = []
-                    placeholders = []
                     
-                    for i, (key, value) in enumerate(data.items()):
+                    for key, value in data.items():
                         # Пропускаем поля с пустыми значениями, если они могут быть NULL
                         if value == "" or value is None:
                             continue
                         columns.append(key)
                         values.append(value)
-                        placeholders.append(f"${i+1}")
                     
                     if not columns:
                         return {"success": False, "error": "Нет данных для вставки"}
+                    
+                    # Используем %s для psycopg2
+                    placeholders = ["%s"] * len(columns)
                     
                     query = f"""
                         INSERT INTO {table_name} ({", ".join(columns)})
