@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # База данных PostgreSQL
+  db:
+    image: postgres:14
+    container_name: library_db
+    environment:
+      POSTGRES_DB: library_management
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  # Веб-приложение
+  app:
+    build: .
+    container_name: library_app
+    environment:
+      DB_HOST: db
+      DB_NAME: library_management
+      DB_USER: admin
+      DB_PASSWORD: 123
+      DB_PORT: 5432
+      BACKUP_DIR: /app/backups
+      ARCHIVE_DIR: /app/archives
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backups:/app/backups
+      - ./archives:/app/archives
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

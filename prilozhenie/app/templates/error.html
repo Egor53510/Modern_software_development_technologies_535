@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Ошибка{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h3 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Ошибка</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">Произошла ошибка!</h4>
+                    <p>{{ error }}</p>
+                    <hr>
+                    <p class="mb-0">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Вернуться на главную
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
