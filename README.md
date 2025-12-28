@@ -10,13 +10,13 @@ Docker Compose (обычно входит в состав Docker Desktop)
 
 Клонируйте репозиторий
 ```bash
-1 git clone https://github.com/your-username/library-management-app.git
-2 cd prilozhenie
+git clone https://github.com/your-username/library-management-app.git
+cd prilozhenie
 ```
 
 Запустите приложение
 ```bash
-1 docker-compose up --build
+docker-compose up --build
 ```
 
 Откройте в браузере
@@ -26,7 +26,7 @@ Docker Compose (обычно входит в состав Docker Desktop)
 bash
 # Нажмите Ctrl+C в терминале# Или в другом терминале выполните:
 ```bash 
-1 docker-compose down
+docker-compose down
 ```
 
 🗂 Структура проекта
