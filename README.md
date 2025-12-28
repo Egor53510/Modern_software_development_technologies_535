@@ -10,7 +10,7 @@ Docker Compose (обычно входит в состав Docker Desktop)
 
 Клонируйте репозиторий
 ```bash
-git clone https://github.com/your-username/Modern_software_development_technologies_535.git
+git clone https://github.com/Egor53510/Modern_software_development_technologies_535.git
 cd prilozhenie
 ```
 
