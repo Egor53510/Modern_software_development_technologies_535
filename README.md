@@ -1,3 +1,7 @@
+Проблемы которые были с обновлением созданием и удалением нехватало conn.commit() чтобы изменения отправлялись
+
+
+
 Система управления библиотекой (LibraSoft)
 
 Веб-приложение для управления базой данных библиотеки на основе PostgreSQL с полным функционалом CRUD, конструктором SQL-запросов и сервисными функциями администрирования.
@@ -11,7 +15,9 @@ Docker Compose (обычно входит в состав Docker Desktop)
 Клонируйте репозиторий
 ```bash
 git clone https://github.com/Egor53510/Modern_software_development_technologies_535.git
-cd prilozhenie
+cd prilozhenie/app
+mkdir static
+cd ..
 ```
 
 Запустите приложение
