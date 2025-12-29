@@ -123,7 +123,7 @@ class CRUD:
                     values = []
                     
                     for key, value in data.items():
-                        if key != pk_column:  # Не обновляем первичный ключ
+                        if key != pk_column and value != "" and value is not None:  # Не обновляем первичный ключ и пустые значения
                             set_parts.append(f"{key} = %s")
                             values.append(value)
                     
@@ -134,6 +134,7 @@ class CRUD:
                     
                     query = f"UPDATE {table_name} SET {', '.join(set_parts)} WHERE {pk_column} = %s"
                     cur.execute(query, values)
+                    conn.commit()
                     
                     return {"success": True, "message": "Запись успешно обновлена"}
         except Exception as e:
@@ -162,6 +163,7 @@ class CRUD:
                     
                     query = f"DELETE FROM {table_name} WHERE {pk_column} = %s"
                     cur.execute(query, (record_id,))
+                    conn.commit()
                     
                     return {"success": True, "message": "Запись успешно удалена"}
         except Exception as e:
@@ -343,14 +345,12 @@ class CRUD:
                     # Подготавливаем SET часть запроса
                     set_parts = []
                     values = []
-                    param_index = 1
                     
                     for key, value in data.items():
                         if value == "" or value is None:
                             continue
-                        set_parts.append(f"{key} = ${param_index}")
+                        set_parts.append(f"{key} = %s")
                         values.append(value)
-                        param_index += 1
                     
                     if not set_parts:
                         return {"success": False, "error": "Нет данных для обновления"}
@@ -358,9 +358,8 @@ class CRUD:
                     # Подготавливаем WHERE часть запроса
                     where_clause = []
                     for key, value in condition.items():
-                        where_clause.append(f"{key} = ${param_index}")
+                        where_clause.append(f"{key} = %s")
                         values.append(value)
-                        param_index += 1
                     
                     if not where_clause:
                         return {"success": False, "error": "Не указаны условия для обновления"}
@@ -448,12 +447,10 @@ class CRUD:
                     # Формируем WHERE часть запроса
                     where_clause = []
                     values = []
-                    param_index = 1
                     
                     for key, value in condition.items():
-                        where_clause.append(f"{key} = ${param_index}")
+                        where_clause.append(f"{key} = %s")
                         values.append(value)
-                        param_index += 1
                     
                     if not where_clause:
                         return {"success": False, "error": "Не указаны условия для удаления"}
@@ -583,7 +580,11 @@ class CRUD:
             "-p", os.getenv("DB_PORT", "5432"),
             "-U", os.getenv("DB_USER", "lib_admin"),
             "-d", os.getenv("DB_NAME", "library_management"),
-            "-c",  # clean (drop) database objects before recreating them
+            "-v",  # verbose
+            "--clean",  # очистить существующие объекты
+            "--if-exists",  # игнорировать ошибки если объектов нет
+            "--no-owner",  # не восстанавливать владельца
+            "--no-privileges",  # не восстанавливать права
             backup_path
         ]
         
@@ -597,9 +598,45 @@ class CRUD:
                 pg_restore_cmd,
                 env=env,
                 capture_output=True,
-                text=True,
-                check=True
+                text=True
             )
+            
+            # Проверяем наличие критических ошибок
+            error_output = result.stderr
+            if error_output:
+                # Игнорируем ошибку transaction_timeout и предупреждения о constraints
+                lines = error_output.split('\n')
+                critical_errors = []
+                
+                for line in lines:
+                    if ('transaction_timeout' in line or 
+                        'multiple primary keys' in line or
+                        'already exists' in line or
+                        'warning:' in line):
+                        continue  # Игнорируем эти ошибки
+                    elif line.strip() and 'error:' in line.lower():
+                        critical_errors.append(line)
+                
+                if critical_errors:
+                    return {
+                        "success": False,
+                        "error": '\n'.join(critical_errors),
+                        "command": " ".join(pg_restore_cmd)
+                    }
+            
+            # Проверяем код возврата
+            if result.returncode != 0:
+                # Если есть ошибки, которые мы игнорируем, считаем это успехом
+                if any('transaction_timeout' in error_output or 
+                      'multiple primary keys' in error_output or
+                      'already exists' in error_output for error_output in [error_output]):
+                    pass  # Игнорируем эти ошибки
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Код возврата: {result.returncode}, stderr: {error_output}",
+                        "command": " ".join(pg_restore_cmd)
+                    }
             
             return {
                 "success": True,

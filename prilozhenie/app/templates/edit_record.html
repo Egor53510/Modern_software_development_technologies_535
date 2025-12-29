@@ -87,21 +87,11 @@ document.getElementById('editForm').addEventListener('submit', async function(e)
     e.preventDefault();
     
     const formData = new FormData(this);
-    const data = {};
-    
-    for (let [key, value] of formData.entries()) {
-        if (value.trim() !== '') {
-            data[key] = value;
-        }
-    }
     
     try {
         const response = await fetch(`/table/{{ table_name }}/edit/{{ record_id }}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
+            body: formData
         });
         
         const result = await response.json();

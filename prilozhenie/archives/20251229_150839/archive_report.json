@@ -1,0 +1,14 @@
+{
+  "timestamp": "20251229_150839",
+  "tables": [
+    {
+      "name": "authors",
+      "rows_archived": 1,
+      "excel_path": "/app/archives/20251229_150839/authors.xlsx",
+      "json_path": "/app/archives/20251229_150839/authors.json",
+      "backup_path": "/app/archives/20251229_150839/authors.backup"
+    }
+  ],
+  "reason": "test archive with data",
+  "total_rows_archived": 1
+}
