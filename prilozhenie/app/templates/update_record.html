@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Обновить записи в {{ table_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h3 class="mb-0"><i class="fas fa-pen me-2"></i>Обновить записи в "{{ table_name }}"</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/table/{{ table_name }}/update">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Условия (WHERE)</h5>
+                            {% for column in columns %}
+                            <div class="mb-3">
+                                <label class="form-label">{{ column.name }} <small class="text-muted">({{ column.type }})</small></label>
+                                <input type="text" class="form-control" name="where_{{ column.name }}" placeholder="Значение для фильтра">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Поля для обновления (SET)</h5>
+                            {% for column in columns %}
+                            {% if column.name not in ['created_at', 'id', table_name ~ '_id'] %}
+                            <div class="mb-3">
+                                <label class="form-label">{{ column.name }} <small class="text-muted">({{ column.type }})</small></label>
+                                {% if column.type == 'boolean' %}
+                                <select class="form-select" name="{{ column.name }}">
+                                    <option value="">(не менять)</option>
+                                    <option value="true">Да</option>
+                                    <option value="false">Нет</option>
+                                </select>
+                                {% elif column.type == 'date' %}
+                                <input type="date" class="form-control" name="{{ column.name }}">
+                                {% elif column.type in ['timestamp', 'timestamp without time zone', 'timestamp with time zone'] %}
+                                <input type="datetime-local" class="form-control" name="{{ column.name }}">
+                                {% elif column.type in ['integer', 'bigint', 'smallint'] %}
+                                <input type="number" class="form-control" name="{{ column.name }}">
+                                {% elif column.type in ['numeric', 'decimal', 'real', 'double precision'] %}
+                                <input type="number" step="0.01" class="form-control" name="{{ column.name }}">
+                                {% else %}
+                                <input type="text" class="form-control" name="{{ column.name }}" placeholder="Новое значение">
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/table/{{ table_name }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Назад
+                        </a>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-check me-1"></i>Обновить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

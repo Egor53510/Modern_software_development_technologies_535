@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Удалить записи из {{ table_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h3 class="mb-0"><i class="fas fa-trash me-2"></i>Удалить записи из "{{ table_name }}"</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/table/{{ table_name }}/delete">
+                    <div class="alert alert-warning">
+                        <strong>Внимание:</strong> будут удалены все записи, подходящие под условия.
+                    </div>
+
+                    <div class="row">
+                        {% for column in columns %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ column.name }} <small class="text-muted">({{ column.type }})</small></label>
+                            <input type="text" class="form-control" name="{{ column.name }}" placeholder="Значение для фильтра">
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/table/{{ table_name }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Назад
+                        </a>
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить записи по указанным условиям?');">
+                            <i class="fas fa-trash me-1"></i>Удалить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -212,6 +212,12 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Таблицы для бэкапа</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAllBackupTables">
+                            <label class="form-check-label" for="selectAllBackupTables">
+                                Выбрать все таблицы
+                            </label>
+                        </div>
                         <div id="backupTablesCheckboxes">
                             <!-- Будет заполнено через JavaScript -->
                         </div>
@@ -341,6 +347,12 @@ document.addEventListener('DOMContentLoaded', function() {
         checkboxes.forEach(cb => cb.checked = this.checked);
     });
 
+    // Выбрать все таблицы для бэкапа
+    document.getElementById('selectAllBackupTables')?.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#backupTablesCheckboxes input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+
     // Создание бэкапа
     document.getElementById('createBackupBtn')?.addEventListener('click', async function() {
         const form = document.getElementById('backupForm');
@@ -354,11 +366,6 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Введите имя бэкапа');
             return;
         }
-        
-        if (selectedTables.length === 0) {
-            alert('Выберите хотя бы одну таблицу');
-            return;
-        }
 
         try {
             const response = await fetch('/create-backup', {
@@ -368,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     backup_name: backupName,
-                    tables: selectedTables
+                    tables: selectedTables.length > 0 ? selectedTables : null
                 })
             });
             
@@ -518,6 +525,9 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshArchivesList();
     });
 
+    // Инициализация обработчиков событий при загрузке страницы
+    attachBackupEventListeners();
+
     // Функция обновления списка бэкапов
     async function refreshBackupsList() {
         try {
@@ -552,18 +562,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     tbody.appendChild(tr);
                 });
+                
+                // Переназначаем обработчики событий после обновления
+                attachBackupEventListeners();
             } else {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Бэкапы не найдены</td></tr>';
             }
             
             // Обновляем счетчик в статистике
-            const backupCount = document.querySelector('.card-body p strong');
-            if (backupCount && backupCount.textContent.includes('Бэкапов:')) {
-                backupCount.innerHTML = `<strong>Бэкапов:</strong> ${backups ? backups.length : 0}`;
+            const backupStrong = Array.from(document.querySelectorAll('.card-body strong'))
+                .find(el => el.textContent.includes('Бэкапов'));
+            if (backupStrong && backupStrong.parentElement) {
+                backupStrong.parentElement.innerHTML = `<strong>Бэкапов:</strong> ${backups ? backups.length : 0}`;
             }
         } catch (error) {
             console.error('Ошибка обновления списка бэкапов:', error);
         }
+    }
+
+    // Функция назначения обработчиков событий для бэкапов
+    function attachBackupEventListeners() {
+        // Обработчики для кнопок восстановления
+        document.querySelectorAll('.restore-backup').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const backupName = this.dataset.backup;
+                if (confirm(`Вы уверены, что хотите восстановить бэкап "${backupName}"?`)) {
+                    restoreBackup(backupName);
+                }
+            });
+        });
+
+        // Обработчики для кнопок удаления
+        document.querySelectorAll('.delete-backup').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const backupName = this.dataset.backup;
+                if (confirm(`Вы уверены, что хотите удалить бэкап "${backupName}"?`)) {
+                    deleteBackup(backupName);
+                }
+            });
+        });
     }
 
     // Функция обновления списка архивов
@@ -599,9 +638,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Обновляем счетчик в статистике
-            const archiveCount = document.querySelectorAll('.card-body p strong')[1];
-            if (archiveCount && archiveCount.textContent.includes('Архивов:')) {
-                archiveCount.innerHTML = `<strong>Архивов:</strong> ${archives ? archives.length : 0}`;
+            const archiveStrong = Array.from(document.querySelectorAll('.card-body strong'))
+                .find(el => el.textContent.includes('Архивов'));
+            if (archiveStrong && archiveStrong.parentElement) {
+                archiveStrong.parentElement.innerHTML = `<strong>Архивов:</strong> ${archives ? archives.length : 0}`;
             }
         } catch (error) {
             console.error('Ошибка обновления списка архивов:', error);
@@ -654,7 +694,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             
             if (result.success) {
-                alert('Бэкап успешно восстановлен');
+                let message = 'Бэкап успешно восстановлен';
+                if (result.warnings && result.warnings.length > 0) {
+                    message += '\n\nПредупреждения:\n' + result.warnings.join('\n');
+                }
+                alert(message);
                 location.reload();
             } else {
                 alert(`Ошибка восстановления бэкапа: ${result.error}`);
@@ -692,7 +736,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Функция просмотра архива
     function viewArchive(archiveName) {
-        alert(`Просмотр архива "${archiveName}" - функция в разработке`);
+        window.location.href = `/archive/${encodeURIComponent(archiveName)}`;
     }
 
     // Функция удаления архива

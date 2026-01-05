@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260105_172256",
+  "tables": [
+    {
+      "name": "authors",
+      "rows_archived": 5,
+      "excel_path": "/app/archives/20260105_172256/authors.xlsx",
+      "json_path": "/app/archives/20260105_172256/authors.json",
+      "backup_path": "/app/archives/20260105_172256/authors.backup"
+    }
+  ],
+  "reason": "сд",
+  "total_rows_archived": 5
+}

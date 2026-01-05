@@ -511,7 +511,7 @@ class CRUD:
             "pg_dump",
             "-h", os.getenv("DB_HOST", "localhost"),
             "-p", os.getenv("DB_PORT", "5432"),
-            "-U", os.getenv("DB_USER", "lib_admin"),
+            "-U", os.getenv("DB_USER", "admin"),
             "-d", os.getenv("DB_NAME", "library_management"),
             "-F", "c",  # custom format
             "-f", backup_path
@@ -524,7 +524,7 @@ class CRUD:
         
         # Устанавливаем переменную окружения для пароля
         env = os.environ.copy()
-        env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "securepass123")
+        env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "123")
         
         try:
             # Выполняем команду
@@ -562,7 +562,7 @@ class CRUD:
     
     @staticmethod
     def restore_backup(backup_path):
-        """Восстановление базы данных из резервной копии"""
+        """Восстановление базы данных из резервной копии (безопасный режим)"""
         import subprocess
         import os
         
@@ -573,83 +573,113 @@ class CRUD:
                 "error": f"Файл бэкапа не существует: {backup_path}"
             }
         
-        # Формируем команду pg_restore
-        pg_restore_cmd = [
-            "pg_restore",
-            "-h", os.getenv("DB_HOST", "localhost"),
-            "-p", os.getenv("DB_PORT", "5432"),
-            "-U", os.getenv("DB_USER", "lib_admin"),
-            "-d", os.getenv("DB_NAME", "library_management"),
-            "-v",  # verbose
-            "--clean",  # очистить существующие объекты
-            "--if-exists",  # игнорировать ошибки если объектов нет
-            "--no-owner",  # не восстанавливать владельца
-            "--no-privileges",  # не восстанавливать права
-            backup_path
-        ]
-        
         # Устанавливаем переменную окружения для пароля
         env = os.environ.copy()
-        env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "securepass123")
+        env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "123")
         
         try:
-            # Выполняем команду
-            result = subprocess.run(
-                pg_restore_cmd,
+            # Очищаем схему public, чтобы избежать ошибок зависимостей при --clean
+            db_host = os.getenv("DB_HOST", "localhost")
+            db_port = os.getenv("DB_PORT", "5432")
+            db_user = os.getenv("DB_USER", "admin")
+            db_name = os.getenv("DB_NAME", "library_management")
+
+            psql_cmd = [
+                "psql",
+                "-h", db_host,
+                "-p", db_port,
+                "-U", db_user,
+                "-d", db_name,
+                "-v", "ON_ERROR_STOP=1",
+                "-c",
+                "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO \"%s\"; GRANT ALL ON SCHEMA public TO public;" % db_user,
+            ]
+
+            psql_result = subprocess.run(
+                psql_cmd,
                 env=env,
                 capture_output=True,
                 text=True
             )
-            
-            # Проверяем наличие критических ошибок
-            error_output = result.stderr
-            if error_output:
-                # Игнорируем ошибку transaction_timeout и предупреждения о constraints
-                lines = error_output.split('\n')
-                critical_errors = []
-                
-                for line in lines:
-                    if ('transaction_timeout' in line or 
-                        'multiple primary keys' in line or
-                        'already exists' in line or
-                        'warning:' in line):
-                        continue  # Игнорируем эти ошибки
-                    elif line.strip() and 'error:' in line.lower():
-                        critical_errors.append(line)
-                
-                if critical_errors:
-                    return {
-                        "success": False,
-                        "error": '\n'.join(critical_errors),
-                        "command": " ".join(pg_restore_cmd)
-                    }
-            
-            # Проверяем код возврата
-            if result.returncode != 0:
-                # Если есть ошибки, которые мы игнорируем, считаем это успехом
-                if any('transaction_timeout' in error_output or 
-                      'multiple primary keys' in error_output or
-                      'already exists' in error_output for error_output in [error_output]):
-                    pass  # Игнорируем эти ошибки
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Код возврата: {result.returncode}, stderr: {error_output}",
-                        "command": " ".join(pg_restore_cmd)
-                    }
-            
+
+            if psql_result.returncode != 0:
+                error_text = psql_result.stderr.strip() or psql_result.stdout.strip() or "Неизвестная ошибка очистки схемы"
+                return {
+                    "success": False,
+                    "error": f"Ошибка подготовки БД (очистка схемы public): {error_text}",
+                    "command": " ".join(psql_cmd)
+                }
+
+            restore_cmd = [
+                "pg_restore",
+                "-h", db_host,
+                "-p", db_port,
+                "-U", db_user,
+                "-d", db_name,
+                "-v",
+                "--no-owner",
+                "--no-privileges",
+                backup_path
+            ]
+
+            result = subprocess.run(
+                restore_cmd,
+                env=env,
+                capture_output=True,
+                text=True
+            )
+
+            stderr_lines = [line.strip() for line in (result.stderr or "").split("\n") if line.strip()]
+            warnings = []
+            errors = []
+
+            for line in stderr_lines:
+                lower = line.lower()
+
+                # pg_restore может ругаться на параметры, которых нет в PostgreSQL 14
+                if "transaction_timeout" in lower and "unrecognized configuration parameter" in lower:
+                    warnings.append(line)
+                    continue
+                if lower.startswith("command was:") and "transaction_timeout" in lower:
+                    warnings.append(line)
+                    continue
+
+                if "warning:" in lower:
+                    warnings.append(line)
+                    continue
+
+                if "error:" in lower:
+                    errors.append(line)
+                    continue
+
+            if result.returncode != 0 and errors:
+                error_text = "\n".join(errors)
+                return {
+                    "success": False,
+                    "error": error_text,
+                    "command": " ".join(restore_cmd),
+                    "warnings": warnings
+                }
+
             return {
                 "success": True,
                 "message": "База данных успешно восстановлена",
                 "backup_path": backup_path,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "warnings": warnings
             }
+            
         except subprocess.CalledProcessError as e:
             print(f"Ошибка восстановления бэкапа: {e.stderr}")
             return {
                 "success": False,
                 "error": e.stderr,
-                "command": " ".join(pg_restore_cmd)
+                "command": " ".join(restore_cmd) if 'restore_cmd' in locals() else "Unknown"
+            }
+        except FileNotFoundError as e:
+            return {
+                "success": False,
+                "error": f"Не найдена утилита для восстановления: {e}. Убедитесь, что установлен postgresql-client (psql/pg_restore)"
             }
         except Exception as e:
             print(f"Ошибка восстановления бэкапа: {e}")

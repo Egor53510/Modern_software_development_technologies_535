@@ -152,3 +152,6 @@ class BackupRequest(BaseModel):
 class ArchiveRequest(BaseModel):
     tables: List[str]
     reason: str
+
+class RestoreRequest(BaseModel):
+    backup_path: str

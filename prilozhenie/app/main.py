@@ -7,10 +7,11 @@ from datetime import datetime
 import json
 import logging
 from contextlib import asynccontextmanager
+from typing import List
 
 from .database import Database
 from .crud import CRUD
-from .models import SQLQuery, ExportFormat, BackupRequest, ArchiveRequest
+from .models import SQLQuery, ExportFormat, BackupRequest, ArchiveRequest, RestoreRequest
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -512,6 +513,64 @@ async def delete_archive(request: dict):
         logger.error(f"Ошибка удаления архива: {e}")
         return {"success": False, "error": str(e)}
 
+# Просмотр содержимого архива
+@app.get("/archive/{archive_name}", response_class=HTMLResponse)
+async def archive_view(request: Request, archive_name: str):
+    """Просмотр содержимого архива"""
+    try:
+        archive_dir = os.getenv("ARCHIVE_DIR", "archives")
+        full_archive_path = os.path.abspath(os.path.join(archive_dir, archive_name))
+        base_archive_dir = os.path.abspath(archive_dir)
+
+        if not full_archive_path.startswith(base_archive_dir + os.sep):
+            raise HTTPException(status_code=400, detail="Некорректный путь архива")
+
+        if not os.path.isdir(full_archive_path):
+            raise HTTPException(status_code=404, detail="Архив не найден")
+
+        files = []
+        for name in sorted(os.listdir(full_archive_path)):
+            file_path = os.path.join(full_archive_path, name)
+            if os.path.isfile(file_path):
+                files.append({
+                    "name": name,
+                    "size": os.path.getsize(file_path),
+                })
+
+        return templates.TemplateResponse("archive_view.html", {
+            "request": request,
+            "archive_name": archive_name,
+            "files": files,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка просмотра архива {archive_name}: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e)
+        })
+
+# Скачивание файла из архива
+@app.get("/archive/{archive_name}/download/{file_name}", response_class=FileResponse)
+async def archive_download(archive_name: str, file_name: str):
+    """Скачивание файла из архива"""
+    archive_dir = os.getenv("ARCHIVE_DIR", "archives")
+    base_archive_dir = os.path.abspath(archive_dir)
+
+    full_archive_path = os.path.abspath(os.path.join(archive_dir, archive_name))
+    if not full_archive_path.startswith(base_archive_dir + os.sep):
+        raise HTTPException(status_code=400, detail="Некорректный путь архива")
+
+    full_file_path = os.path.abspath(os.path.join(full_archive_path, file_name))
+    if not full_file_path.startswith(full_archive_path + os.sep):
+        raise HTTPException(status_code=400, detail="Некорректный путь файла")
+
+    if not os.path.isfile(full_file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    return FileResponse(full_file_path, filename=file_name)
+
 # API эндпоинт для получения колонок таблицы
 @app.get("/table/{table_name}/columns", response_class=JSONResponse)
 async def get_table_columns_api(table_name: str):
@@ -581,8 +640,16 @@ async def export_sql_results(
         # Создаем временный файл
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"sql_export_{timestamp}"
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{format}") as temp_file:
+
+        suffix_map = {
+            "excel": ".xlsx",
+            "json": ".json",
+            "csv": ".csv",
+        }
+
+        suffix = suffix_map[format]
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             if format == "excel":
                 # Экспорт в Excel
                 import pandas as pd
@@ -617,10 +684,6 @@ async def export_sql_results(
         if 'temp_file' in locals() and os.path.exists(temp_file.name):
             os.unlink(temp_file.name)
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        # Удаляем временный файл после отправки
-        if 'temp_file' in locals() and os.path.exists(temp_file.name):
-            os.unlink(temp_file.name)
 
 # Сервисные функции
 @app.get("/admin", response_class=HTMLResponse)
@@ -685,17 +748,17 @@ async def create_backup(request: BackupRequest):
 
 # Восстановление из бэкапа
 @app.post("/restore-backup", response_class=JSONResponse)
-async def restore_backup(backup_path: str):
+async def restore_backup(request: RestoreRequest):
     """Восстановление базы данных из резервной копии"""
     try:
         # Проверяем, что путь находится внутри директории бэкапов
         backup_dir = os.getenv("BACKUP_DIR", "backups")
-        full_path = os.path.join(backup_dir, backup_path)
+        full_path = os.path.join(backup_dir, request.backup_path)
         
         if not os.path.exists(full_path):
             return {
                 "success": False,
-                "error": f"Файл бэкапа не найден: {backup_path}"
+                "error": f"Файл бэкапа не найден: {request.backup_path}"
             }
         
         result = CRUD.restore_backup(full_path)
@@ -712,8 +775,22 @@ async def restore_backup(backup_path: str):
 async def archive_tables(request: ArchiveRequest):
     """Архивация таблиц"""
     try:
-        result = CRUD.archive_tables(request.tables, request.reason)
-        return result
+        report = CRUD.archive_tables(request.tables, request.reason)
+
+        table_errors = []
+        for t in report.get("tables", []):
+            if isinstance(t, dict) and t.get("error"):
+                table_errors.append({"table": t.get("name"), "error": t.get("error")})
+
+        if table_errors:
+            return {
+                "success": False,
+                "error": "Некоторые таблицы не удалось архивировать",
+                "table_errors": table_errors,
+                "report": report,
+            }
+
+        return {"success": True, "report": report}
     except Exception as e:
         logger.error(f"Ошибка архивации таблиц: {e}")
         return {
@@ -726,12 +803,16 @@ async def archive_tables(request: ArchiveRequest):
 async def export_tables(
     request: Request,
     format: str = Form(...),
-    tables: list = Form(...)
+    tables: List[str] = Form(...)
 ):
     """Экспорт таблиц в файл"""
     # Валидация формата
     if format not in ["excel", "json"]:
         raise HTTPException(status_code=400, detail="Недопустимый формат экспорта")
+
+    # FastAPI может отдать строку, если пришло одно значение — нормализуем
+    if isinstance(tables, str):
+        tables = [tables]
     
     try:
         import tempfile
